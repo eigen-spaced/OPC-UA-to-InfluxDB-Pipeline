@@ -1,0 +1,30 @@
+{
+  "name": "opc-ua-water-treatment-sim",
+  "version": "1.0.0",
+  "description": "OPC UA simulation server for a water treatment facility with tank farm, pump station, and quality monitoring subsystems",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "echo \"No tests configured yet\" && exit 0"
+  },
+  "keywords": [
+    "opcua",
+    "opc-ua",
+    "simulation",
+    "scada",
+    "water-treatment",
+    "industrial-automation"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "node-opcua": "2.128.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

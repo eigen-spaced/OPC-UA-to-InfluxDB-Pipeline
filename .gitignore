@@ -1,0 +1,8 @@
+node_modules/
+pki/
+logs/
+*.pem
+*.der
+*.log
+.DS_Store
+.env
