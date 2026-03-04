@@ -78,6 +78,109 @@ function createQualityState() {
 }
 
 /**
+ * Scenario target definitions.
+ * Each scenario maps writable state fields to their desired end-state values.
+ */
+const SCENARIOS = {
+  normal: {
+    "tank1.fillValve": 50, "tank1.drainValve": 30,
+    "tank2.fillValve": 50, "tank2.drainValve": 30,
+    "pump1.running": true, "pump1.speed": 50, "pump1.fault": false, "pump1.faultCode": 0,
+    "pump2.running": true, "pump2.speed": 50,
+  },
+  high_demand: {
+    "tank1.fillValve": 20, "tank1.drainValve": 100,
+    "tank2.fillValve": 20, "tank2.drainValve": 100,
+    "pump1.running": true, "pump1.speed": 100, "pump1.fault": false, "pump1.faultCode": 0,
+    "pump2.running": true, "pump2.speed": 100,
+  },
+  fault: {
+    "tank1.fillValve": 50, "tank1.drainValve": 30,
+    "tank2.fillValve": 10, "tank2.drainValve": 95,
+    "pump1.running": false, "pump1.speed": 0, "pump1.fault": true, "pump1.faultCode": 1,
+    "pump2.running": true, "pump2.speed": 100,
+  },
+};
+
+/** Duration of scenario transitions in seconds. */
+const SCENARIO_DURATION_SEC = 30;
+
+/**
+ * Reads a dotted path (e.g. "tank1.fillValve") from the simulation state.
+ */
+function getStatePath(state, path) {
+  const [obj, key] = path.split(".");
+  return state[obj][key];
+}
+
+/**
+ * Writes a value to a dotted path on the simulation state.
+ */
+function setStatePath(state, path, value) {
+  const [obj, key] = path.split(".");
+  state[obj][key] = value;
+}
+
+/**
+ * Snapshots the current values for all fields referenced by a scenario's targets.
+ */
+function snapshotFields(state, targets) {
+  const snap = {};
+  for (const path of Object.keys(targets)) {
+    snap[path] = getStatePath(state, path);
+  }
+  return snap;
+}
+
+/**
+ * Validates and begins a scenario transition.
+ * @param {object} state - Full simulation state (must include state.scenario)
+ * @param {string} name - Scenario name (key of SCENARIOS)
+ * @returns {boolean} true if started, false if invalid name
+ */
+function startScenario(state, name) {
+  if (!SCENARIOS[name]) {
+    console.warn(`[SCENARIO] Unknown scenario "${name}". Valid: ${Object.keys(SCENARIOS).join(", ")}`);
+    return false;
+  }
+  const targets = SCENARIOS[name];
+  state.scenario.active = name;
+  state.scenario.targets = targets;
+  state.scenario.progress = 0;
+  state.scenario.startSnapshot = snapshotFields(state, targets);
+  console.log(`[SCENARIO] Starting "${name}" transition (${SCENARIO_DURATION_SEC}s)`);
+  return true;
+}
+
+/**
+ * Advances the active scenario transition by one tick.
+ * Numeric fields are linearly interpolated; booleans snap at progress >= 0.5.
+ * @param {object} state - Full simulation state
+ * @param {number} dt - Time step in seconds
+ */
+function updateScenario(state, dt) {
+  const sc = state.scenario;
+  if (!sc.targets) return;
+
+  sc.progress = clamp(sc.progress + dt / SCENARIO_DURATION_SEC, 0, 1);
+
+  for (const [path, target] of Object.entries(sc.targets)) {
+    const start = sc.startSnapshot[path];
+    if (typeof target === "boolean") {
+      setStatePath(state, path, sc.progress >= 0.5 ? target : start);
+    } else {
+      setStatePath(state, path, start + (target - start) * sc.progress);
+    }
+  }
+
+  if (sc.progress >= 1) {
+    console.log(`[SCENARIO] "${sc.active}" transition complete`);
+    sc.targets = null;
+    sc.startSnapshot = null;
+  }
+}
+
+/**
  * Creates the complete simulation state object.
  * @returns {object} Full simulation state with all subsystems
  */
@@ -88,6 +191,12 @@ function createSimulationState() {
     pump1: createPumpState(),
     pump2: createPumpState(),
     quality: createQualityState(),
+    scenario: {
+      active: "normal",
+      targets: null,
+      progress: 0,
+      startSnapshot: null,
+    },
   };
 }
 
@@ -207,6 +316,8 @@ function updateQuality(q, dt) {
 function tick(state) {
   const dt = config.simulation.tickRateMs / 1000.0;
 
+  updateScenario(state, dt);
+
   updateTank(state.tank1, config.tankFarm.tank1, dt);
   updateTank(state.tank2, config.tankFarm.tank2, dt);
 
@@ -238,6 +349,7 @@ function clampWithWarning(nodeName, value, min, max) {
 module.exports = {
   createSimulationState,
   tick,
+  startScenario,
   clampWithWarning,
   clamp,
 };

@@ -88,12 +88,6 @@ function createServer() {
  * @param {object} nodes - Node references from buildAddressSpace()
  */
 function printNodeList(nodes) {
-  console.log(
-    "\n┌─────────────────────────────────────────────────────────────┐"
-  )
-  console.log("│                    Browseable Nodes                        │")
-  console.log("├─────────────────────────────────────────────────────────────┤")
-
   const entries = [
     ["WaterTreatment/TankFarm/Tank1/Level", "Double", "RO", "0–100 %"],
     ["WaterTreatment/TankFarm/Tank1/FillValve", "Double", "RW", "0–100 %"],
@@ -111,52 +105,48 @@ function printNodeList(nodes) {
     ["WaterTreatment/PumpStation/Pump1/Speed", "Double", "RW", "0–100 %"],
     ["WaterTreatment/PumpStation/Pump1/Current", "Double", "RO", "A"],
     ["WaterTreatment/PumpStation/Pump1/RuntimeHours", "Double", "RO", "hours"],
-    [
-      "WaterTreatment/PumpStation/Pump1/Fault",
-      "Boolean",
-      "RW",
-      "write false to clear",
-    ],
-    [
-      "WaterTreatment/PumpStation/Pump1/FaultCode",
-      "Int32",
-      "RO",
-      "0=none, 1=dry-run",
-    ],
+    ["WaterTreatment/PumpStation/Pump1/Fault", "Boolean", "RW", "write false to clear"],
+    ["WaterTreatment/PumpStation/Pump1/FaultCode", "Int32", "RO", "0=none, 1=dry-run"],
     ["WaterTreatment/PumpStation/Pump2/Running", "Boolean", "RW", "true/false"],
     ["WaterTreatment/PumpStation/Pump2/Speed", "Double", "RW", "0–100 %"],
     ["WaterTreatment/PumpStation/Pump2/Current", "Double", "RO", "A"],
     ["WaterTreatment/PumpStation/Pump2/RuntimeHours", "Double", "RO", "hours"],
-    [
-      "WaterTreatment/PumpStation/Pump2/Fault",
-      "Boolean",
-      "RW",
-      "write false to clear",
-    ],
-    [
-      "WaterTreatment/PumpStation/Pump2/FaultCode",
-      "Int32",
-      "RO",
-      "0=none, 1=dry-run",
-    ],
+    ["WaterTreatment/PumpStation/Pump2/Fault", "Boolean", "RW", "write false to clear"],
+    ["WaterTreatment/PumpStation/Pump2/FaultCode", "Int32", "RO", "0=none, 1=dry-run"],
     ["WaterTreatment/QualityMonitoring/pH", "Double", "RO", "pH units"],
     ["WaterTreatment/QualityMonitoring/Turbidity", "Double", "RO", "NTU"],
-    [
-      "WaterTreatment/QualityMonitoring/ChlorineResidual",
-      "Double",
-      "RO",
-      "mg/L",
-    ],
+    ["WaterTreatment/QualityMonitoring/ChlorineResidual", "Double", "RO", "mg/L"],
+    ["WaterTreatment/ScenarioControl", "String", "RW", "normal, high_demand, fault"],
+    ["WaterTreatment/ScenarioProgress", "Double", "RO", "0.0–1.0"],
   ]
 
+  // Compute column widths from data
+  const cols = [0, 0, 0, 0]
+  for (const row of entries) {
+    for (let i = 0; i < 4; i++) {
+      if (row[i].length > cols[i]) cols[i] = row[i].length
+    }
+  }
+
+  const pad = (s, w) => s + " ".repeat(Math.max(0, w - s.length))
+  const innerWidth = cols[0] + 3 + cols[1] + 3 + cols[2] + 3 + cols[3]
+  const hLine = "─".repeat(innerWidth + 2)
+
+  const title = "Browseable Nodes"
+  const titlePad = Math.floor((innerWidth - title.length) / 2)
+  const titleLine = " ".repeat(titlePad) + title + " ".repeat(innerWidth - titlePad - title.length)
+
+  console.log(`\n┌${hLine}┐`)
+  console.log(`│ ${titleLine} │`)
+  console.log(`├${hLine}┤`)
+
   for (const [nodePath, type, access, range] of entries) {
-    const pad = (s, w) => s + " ".repeat(Math.max(0, w - s.length))
     console.log(
-      `│ ${pad(nodePath, 46)} ${pad(type, 8)} ${pad(access, 3)} ${range}`
+      `│ ${pad(nodePath, cols[0])} │ ${pad(type, cols[1])} │ ${pad(access, cols[2])} │ ${pad(range, cols[3])} │`
     )
   }
 
-  console.log("└─────────────────────────────────────────────────────────────┘")
+  console.log(`└${hLine}┘`)
   console.log(`  Total: ${entries.length} nodes (RW = writable by clients)\n`)
 }
 
@@ -220,6 +210,9 @@ async function main() {
   console.log(
     `[SIM] Simulation running (tick rate: ${config.simulation.tickRateMs}ms)`
   )
+  console.log("[SIM] Scenario engine: enabled (transition duration: 30s)")
+  console.log("[SIM] Available scenarios: normal, high_demand, fault")
+  console.log("[SIM] Write scenario name to WaterTreatment/ScenarioControl to trigger")
 
   // Start CSV data logger
   const logger = createLogger()

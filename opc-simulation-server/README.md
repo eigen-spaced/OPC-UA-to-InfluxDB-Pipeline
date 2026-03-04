@@ -68,10 +68,12 @@ Objects/
     │   │   ├── Fault            (Boolean, RW) write false to clear
     │   │   └── FaultCode        (Int32, RO)   0=none, 1=dry-run
     │   └── Pump2/  (same structure)
-    └── QualityMonitoring/
-        ├── pH                   (Double, RO)  pH units
-        ├── Turbidity            (Double, RO)  NTU
-        └── ChlorineResidual     (Double, RO)  mg/L
+    ├── QualityMonitoring/
+    │   ├── pH                   (Double, RO)  pH units
+    │   ├── Turbidity            (Double, RO)  NTU
+    │   └── ChlorineResidual     (Double, RO)  mg/L
+    ├── ScenarioControl          (String, RW)  normal, high_demand, fault
+    └── ScenarioProgress         (Double, RO)  0.0–1.0
 ```
 
 ### Writable Nodes
@@ -88,8 +90,40 @@ Objects/
 | `.../Pump2/Running` | Boolean | true / false | Start/stop command |
 | `.../Pump2/Speed` | Double | 0.0 – 100.0 | Speed setpoint |
 | `.../Pump2/Fault` | Boolean | write `false` | Clears active fault |
+| `WaterTreatment/ScenarioControl` | String | see below | Triggers a scenario transition |
 
 Out-of-range writes are clamped with a warning logged to the server console.
+
+## Scenario Engine
+
+The server includes a scenario engine that smoothly transitions the plant between predefined operating states. Write a scenario name to the `ScenarioControl` node to trigger a 30-second transition where all writable fields lerp from their current values to the scenario targets. Monitor progress via the `ScenarioProgress` node (0.0 = start, 1.0 = done).
+
+### Available Scenarios
+
+| Field | `normal` | `high_demand` | `fault` |
+|---|---|---|---|
+| Tank1 FillValve | 50 | 20 | 50 |
+| Tank1 DrainValve | 30 | 100 | 30 |
+| Tank2 FillValve | 50 | 20 | 10 |
+| Tank2 DrainValve | 30 | 100 | 95 |
+| Pump1 Running | true | true | false |
+| Pump1 Speed | 50 | 100 | 0 |
+| Pump1 Fault | false | false | true |
+| Pump1 FaultCode | 0 | 0 | 1 |
+| Pump2 Running | true | true | true |
+| Pump2 Speed | 50 | 100 | 100 |
+
+- **`normal`** — Balanced operation: both tanks filling/draining at moderate rates, both pumps at 50% speed
+- **`high_demand`** — Maximum throughput: drain valves fully open, pumps at 100%, minimal fill
+- **`fault`** — Equipment failure: Pump1 faults out, Tank2 drains rapidly with minimal fill
+
+### Usage
+
+1. Connect a client to the server
+2. Write `"high_demand"` to `WaterTreatment/ScenarioControl`
+3. Watch values transition smoothly over ~30 seconds
+4. Write `"normal"` to return to baseline
+5. Write `"fault"` to simulate an equipment failure
 
 ## Security Configuration
 
@@ -215,7 +249,7 @@ opc-ua-influx-pipeline/
 ├── src/
 │   ├── server.js          # Entry point — server init, lifecycle, shutdown
 │   ├── addressSpace.js    # OPC UA node definitions and write handlers
-│   ├── simulation.js      # Physics engine — tanks, pumps, quality sensors
+│   ├── simulation.js      # Physics engine — tanks, pumps, quality sensors, scenario engine
 │   └── config.js          # All tunable parameters
 ├── pki/                   # Auto-generated certificates (git-ignored)
 ├── package.json

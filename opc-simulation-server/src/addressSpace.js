@@ -9,7 +9,7 @@
 
 const opcua = require("node-opcua");
 const config = require("./config");
-const { clampWithWarning } = require("./simulation");
+const { clampWithWarning, startScenario } = require("./simulation");
 
 /**
  * Creates a read-only analog variable in the address space.
@@ -280,7 +280,33 @@ function buildAddressSpace(server, simState) {
   // QualityMonitoring
   const qualityNodes = buildQualityNodes(ns, root, simState.quality);
 
-  return { tank1Nodes, tank2Nodes, pump1Nodes, pump2Nodes, qualityNodes };
+  // Scenario control nodes
+  const scenarioControl = ns.addVariable({
+    componentOf: root,
+    browseName: "ScenarioControl",
+    displayName: "ScenarioControl",
+    description: "Write a scenario name to trigger a transition (normal, high_demand, fault)",
+    dataType: opcua.DataType.String,
+    accessLevel: "CurrentRead | CurrentWrite",
+    userAccessLevel: "CurrentRead | CurrentWrite",
+    value: {
+      get: () => new opcua.Variant({ dataType: opcua.DataType.String, value: simState.scenario.active }),
+      set: (variant) => {
+        const name = (variant.value || "").toString().trim();
+        if (!startScenario(simState, name)) {
+          return opcua.StatusCodes.BadOutOfRange;
+        }
+        return opcua.StatusCodes.Good;
+      },
+    },
+  });
+
+  const scenarioProgress = addReadOnlyVariable(
+    ns, root, "ScenarioProgress", opcua.DataType.Double, 0.0,
+    "Scenario transition progress (0.0–1.0)"
+  );
+
+  return { tank1Nodes, tank2Nodes, pump1Nodes, pump2Nodes, qualityNodes, scenarioControl, scenarioProgress };
 }
 
 /**
@@ -291,7 +317,7 @@ function buildAddressSpace(server, simState) {
  * @param {object} simState - Current simulation state
  */
 function syncNodesToState(nodes, simState) {
-  const { tank1Nodes, tank2Nodes, pump1Nodes, pump2Nodes, qualityNodes } = nodes;
+  const { tank1Nodes, tank2Nodes, pump1Nodes, pump2Nodes, qualityNodes, scenarioProgress } = nodes;
 
   // Tank 1 (read-only fields)
   tank1Nodes.level.setValueFromSource({ dataType: opcua.DataType.Double, value: simState.tank1.level });
@@ -319,6 +345,9 @@ function syncNodesToState(nodes, simState) {
   qualityNodes.pH.setValueFromSource({ dataType: opcua.DataType.Double, value: simState.quality.pH });
   qualityNodes.turbidity.setValueFromSource({ dataType: opcua.DataType.Double, value: simState.quality.turbidity });
   qualityNodes.chlorine.setValueFromSource({ dataType: opcua.DataType.Double, value: simState.quality.chlorine });
+
+  // Scenario progress
+  scenarioProgress.setValueFromSource({ dataType: opcua.DataType.Double, value: simState.scenario.progress });
 }
 
 module.exports = { buildAddressSpace, syncNodesToState };
