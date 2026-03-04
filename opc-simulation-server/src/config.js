@@ -12,6 +12,8 @@ const path = require("path");
 const server = {
   /** TCP port the OPC UA server listens on */
   port: 4840,
+  /** Hostname for endpoint URLs (use "localhost" for local development) */
+  hostname: "localhost",
   /** Resource path for the OPC UA endpoint */
   resourcePath: "/UA/WaterTreatment",
   /** Server URI used in OPC UA discovery */
